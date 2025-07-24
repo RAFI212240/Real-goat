@@ -24,7 +24,7 @@ config: {
       nick: '𝐉𝐚𝐦𝐚𝐢  '
     };
 
-    const bold = 'https://files.catbox.moe/dpgl9a.jpg'; // Replace with your Google Drive videoid link https://drive.google.com/uc?export=download&id=here put your video id
+    const bold = 'https://files.catbox.moe/nxbp5h.jpg'; // Replace with your Google Drive videoid link https://drive.google.com/uc?export=download&id=here put your video id
 
     const tmpFolderPath = path.join(__dirname, 'tmp');
 
@@ -39,7 +39,7 @@ config: {
 
     const response = ` 
 ╭[ .  ]•〆 𝐑𝐀F𝐈 〆 ]  ─⦿
-╭────────────◊
+╭────────────◊-✨🎀
 ├‣ 𝐁𝐨𝐭 & 𝐎𝐰𝐧𝐞𝐫 𝐈𝐧𝐟𝐨𝐫𝐦𝐚𝐭𝐢𝐨𝐧 
 ├‣ 𝐍𝐚𝐦𝐞: ${ownerInfo.name}
 ├‣ 𝐆𝐞𝐧𝐝𝐞𝐫:  ${ownerInfo.gender}
@@ -47,7 +47,7 @@ config: {
 ├‣ 𝐍𝐢𝐜𝐤 : ${ownerInfo.nick}
 ├‣ 𝐂𝐡𝐨𝐢𝐬𝐞:  ${ownerInfo.choise}   
 ├‣ 𝐇𝐞𝐢𝐠𝐡𝐭 : ${ownerInfo.height}
-╰────────────◊ 
+╰────────────◊-✨🎀 
 `;
 
     await api.sendMessage({
