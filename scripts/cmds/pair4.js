@@ -57,14 +57,8 @@ module.exports = {
 
     const randomPartner = candidates[Math.floor(Math.random() * candidates.length)];
     const id2 = randomPartner.id;
-    let name2 = await usersData.getName(id2);
-    
-    // যদি name পাওয়া না যায় তাহলে opposite gender এর নাম দেওয়া
-    if (!name2) {
-      if (randomPartner.gender === "MALE") name2 = "Handsome Guy";
-      else if (randomPartner.gender === "FEMALE") name2 = "Beautiful Girl";
-      else name2 = "Unknown";
-    }
+    // ইউজারের নাম নাও, না পেলে "Unknown" রাখো
+    const name2 = await usersData.getName(id2) || "Unknown";
 
     const percentageList = [
       `${Math.floor(Math.random() * 100) + 1}`, "0", "-1", "99,99", "-99", "-100", "101", "0,01"
@@ -116,10 +110,10 @@ module.exports = {
   },
 
   onChat: async function (context) {
-    const { event, message } = context;
-    if (event.body && event.body.toLowerCase() === "pair") {
+    const { event } = context;
+    if (event.body && event.body.toLowerCase() === "pair4") {
       this.onStart(context);
     }
   }
 };
-                                
+         
