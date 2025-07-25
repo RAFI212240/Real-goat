@@ -1,10 +1,9 @@
-const { config } = global.GoatBot;
 const { writeFileSync } = require("fs-extra");
 
 module.exports = {
     config: {
         name: "permission",
-        aliases:["own"],
+        aliases: ["own"],
         version: "1.1",
         author: "♡︎ 𝐻𝐴𝑆𝐴𝑁 ♡︎",
         countDown: 5,
@@ -24,30 +23,37 @@ module.exports = {
             missingIdAdd: "⚠️ | Please provide an ID, tag a user, or reply to a message to add owner role",
             removed: "✅ | Removed owner role from %1 users:\n%2",
             notAdmin: "⚠️ | %1 users do not have owner role:\n%2",
-            missingIdRemove: "⚠️ | Please provide an ID, tag a user, or reply to a message to remove owner role"
+            missingIdRemove: "⚠️ | Please provide an ID, tag a user, or reply to a message to remove owner role",
+            noPermission: "Permission dewar tui ke bey? 🐸✌️",
+            invalidCommand: "⚠️ | Invalid command! Use 'add' or 'remove'."
         }
     },
 
-    onStart: async function ({ message, args, usersData, event, getLang }) {
+    onStart: async function ({ message, args, usersData, event, getLang, api }) {
+        const config = global.GoatBot.config;
+        
+        // Owner permission check
+        if (!config.owner || !config.owner.includes(event.senderID)) {
+            return api.sendMessage(getLang("noPermission"), event.threadID, event.messageID);
+        }
 
-const permission = global.GoatBot.config.owner;
-  if (!permission.includes(event.senderID)) {
-    api.sendMessage("Permission dewar tui ke bey? 🐸✌️", event.threadID, event.messageID);
-    return;
-  }
+        // Initialize owner array if it doesn't exist
+        if (!config.owner) {
+            config.owner = [];
+        }
 
         switch (args[0]) {
             case "add":
             case "-a": {
                 let uids = [];
 
-                
-                if (Object.keys(event.mentions).length > 0) {
+                // Get UIDs from mentions, reply, or arguments
+                if (Object.keys(event.mentions || {}).length > 0) {
                     uids = Object.keys(event.mentions);
                 } else if (event.messageReply) {
                     uids.push(event.messageReply.senderID);
                 } else {
-                    uids = args.filter(arg => !isNaN(arg));
+                    uids = args.slice(1).filter(arg => !isNaN(arg));
                 }
 
                 if (uids.length === 0) {
@@ -62,34 +68,56 @@ const permission = global.GoatBot.config.owner;
                         alreadyAdmins.push(uid);
                     } else {
                         newAdmins.push(uid);
+                        config.owner.push(uid);
                     }
                 }
 
-                config.owner.push(...newAdmins);
+                // Save config
                 writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
 
-                const newAdminNames = await Promise.all(newAdmins.map(uid => usersData.getName(uid)));
-                const alreadyAdminNames = await Promise.all(alreadyAdmins.map(uid => usersData.getName(uid)));
-
-                return message.reply(
-                    (newAdmins.length > 0 ? 
-                        getLang("added", newAdmins.length, newAdminNames.map(name => `• ${name}`).join("\n")) : "") +
-                    (alreadyAdmins.length > 0 ? 
-                        getLang("alreadyAdmin", alreadyAdmins.length, alreadyAdminNames.map(name => `• ${name}`).join("\n")) : "")
+                // Get names
+                const newAdminNames = await Promise.all(
+                    newAdmins.map(async uid => {
+                        try {
+                            return await usersData.getName(uid) || uid;
+                        } catch {
+                            return uid;
+                        }
+                    })
                 );
+
+                const alreadyAdminNames = await Promise.all(
+                    alreadyAdmins.map(async uid => {
+                        try {
+                            return await usersData.getName(uid) || uid;
+                        } catch {
+                            return uid;
+                        }
+                    })
+                );
+
+                let replyMsg = "";
+                if (newAdmins.length > 0) {
+                    replyMsg += getLang("added", newAdmins.length, newAdminNames.map(name => `• ${name}`).join("\n"));
+                }
+                if (alreadyAdmins.length > 0) {
+                    replyMsg += getLang("alreadyAdmin", alreadyAdmins.length, alreadyAdminNames.map(name => `• ${name}`).join("\n"));
+                }
+
+                return message.reply(replyMsg);
             }
 
             case "remove":
             case "-r": {
                 let uids = [];
 
-                
-                if (Object.keys(event.mentions).length > 0) {
+                // Get UIDs from mentions, reply, or arguments
+                if (Object.keys(event.mentions || {}).length > 0) {
                     uids = Object.keys(event.mentions);
                 } else if (event.messageReply) {
                     uids.push(event.messageReply.senderID);
                 } else {
-                    uids = args.filter(arg => !isNaN(arg));
+                    uids = args.slice(1).filter(arg => !isNaN(arg));
                 }
 
                 if (uids.length === 0) {
@@ -100,30 +128,54 @@ const permission = global.GoatBot.config.owner;
                 const notAdmins = [];
 
                 for (const uid of uids) {
-                    if (config.owner.includes(uid)) {
+                    const index = config.owner.indexOf(uid);
+                    if (index !== -1) {
                         removedAdmins.push(uid);
-                        config.owner.splice(config.adminBot.indexOf(uid), 1);
+                        config.owner.splice(index, 1);
                     } else {
                         notAdmins.push(uid);
                     }
                 }
 
+                // Save config
                 writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
 
-                const removedAdminNames = await Promise.all(removedAdmins.map(uid => usersData.getName(uid)));
-                const notAdminNames = await Promise.all(notAdmins.map(uid => usersData.getName(uid)));
-
-                return message.reply(
-                    (removedAdmins.length > 0 ? 
-                        getLang("removed", removedAdmins.length, removedAdminNames.map(name => `• ${name}`).join("\n")) : "") +
-                    (notAdmins.length > 0 ? 
-                        getLang("notAdmin", notAdmins.length, notAdminNames.map(name => `• ${name}`).join("\n")) : "")
+                // Get names
+                const removedAdminNames = await Promise.all(
+                    removedAdmins.map(async uid => {
+                        try {
+                            return await usersData.getName(uid) || uid;
+                        } catch {
+                            return uid;
+                        }
+                    })
                 );
+
+                const notAdminNames = await Promise.all(
+                    notAdmins.map(async uid => {
+                        try {
+                            return await usersData.getName(uid) || uid;
+                        } catch {
+                            return uid;
+                        }
+                    })
+                );
+
+                let replyMsg = "";
+                if (removedAdmins.length > 0) {
+                    replyMsg += getLang("removed", removedAdmins.length, removedAdminNames.map(name => `• ${name}`).join("\n"));
+                }
+                if (notAdmins.length > 0) {
+                    replyMsg += getLang("notAdmin", notAdmins.length, notAdminNames.map(name => `• ${name}`).join("\n"));
+                }
+
+                return message.reply(replyMsg);
             }
 
             default: {
-                return message.reply("⚠️ | Invalid command! Use 'add' or 'remove'.");
+                return message.reply(getLang("invalidCommand"));
             }
         }
     }
 };
+                
