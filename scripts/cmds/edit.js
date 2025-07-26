@@ -1,70 +1,50 @@
-const fs = require("fs");
-const path = require("path");
 const axios = require("axios");
+const fs = require("fs-extra");
+const path = require("path");
 
 module.exports = {
-  config: {
-    name: "edit",
-    aliases: ['imgedit'],
-    author: "Mahi--",
-    version: "1.0",
-    cooldowns: 20,
-    role: 0,
-    shortDescription: "Edit image with text prompt",
-    longDescription: "Edits an image using the provided text prompt and image link or replied image",
-    category: "image",
-    guide: "{p}edit <prompt> (reply to image) or {p}edit <image_url> <prompt>",
-  },
-  onStart: async function ({ message, args, api, event }) {
-    // Obfuscated author name check
-    const obfuscatedAuthor = String.fromCharCode(77, 97, 104, 105, 45, 45);
-    if (this.config.author !== obfuscatedAuthor) {
-      return api.sendMessage("You are not authorized to change the author name.", event.threadID, event.messageID);
-    }
+config: {
+name: "edit",
+version: "1.0",
+author: "Rifat | nxo_here",
+countDown: 5,
+role: 0,
+shortDescription: { en: "Edit image using prompt" },
+longDescription: { en: "Edit an uploaded image based on your prompt." },
+category: "image",
+guide: { en: "{p}edit [prompt] (reply to image)" }
+},
 
-    // Get image URL and prompt
-    let imageUrl, prompt;
-    
-    if (event.messageReply && event.messageReply.attachments.length > 0) {
-      // Case: Reply to an image with prompt in arguments
-      imageUrl = event.messageReply.attachments[0].url;
-      prompt = args.join(" ");
-    } else if (args.length >= 2) {
-      // Case: Image URL and prompt provided as arguments
-      imageUrl = args[0];
-      prompt = args.slice(1).join(" ");
-    } else {
-      return api.sendMessage("❌ | Invalid format. Use:\n• Reply to an image with '{p}edit <prompt>'\n• Or '{p}edit <image_url> <prompt>'", event.threadID);
-    }
+onStart: async function ({ api, event, args, message }) {
+const prompt = args.join(" ");
+const repliedImage = event.messageReply?.attachments?.[0];
 
-    if (!prompt) {
-      return api.sendMessage("❌ | Please provide a text prompt for the image editing.", event.threadID);
-    }
+if (!prompt || !repliedImage || repliedImage.type !== "photo") {
+return message.reply("⚠️ | Please reply to a photo with your prompt to edit it.");
+}
 
-    api.sendMessage("🔄 | Editing your image, please wait...", event.threadID, event.messageID);
+const imgPath = path.join(__dirname, "cache", `${Date.now()}_edit.jpg`);
+const waitMsg = await message.reply(`🧪 Editing image for: "${prompt}"...\nPlease wait...`);
 
-    try {
-      const editApiUrl = `http://193.149.164.141:9995/i/api/edit?url=${encodeURIComponent(imageUrl)}&txt=${encodeURIComponent(prompt)}`;
+try {
+const imgURL = repliedImage.url;
+const imageUrl = `https://edit-and-gen.onrender.com/gen?prompt=${encodeURIComponent(prompt)}&image=${encodeURIComponent(imgURL)}`;
+const res = await axios.get(imageUrl, { responseType: "arraybuffer" });
 
-      const response = await axios.get(editApiUrl, {
-        responseType: "arraybuffer"
-      });
+await fs.ensureDir(path.dirname(imgPath));
+await fs.writeFile(imgPath, Buffer.from(res.data, "binary"));
 
-      const cacheFolderPath = path.join(__dirname, "cache");
-      if (!fs.existsSync(cacheFolderPath)) {
-        fs.mkdirSync(cacheFolderPath);
-      }
-      const imagePath = path.join(cacheFolderPath, `${Date.now()}_edited_image.jpg`);
-      fs.writeFileSync(imagePath, Buffer.from(response.data, "binary"));
+await message.reply({
+body: `✅ | Edited image for: "${prompt}"`,
+attachment: fs.createReadStream(imgPath)
+});
 
-      const stream = fs.createReadStream(imagePath);
-      message.reply({
-        body: `✅ | Image edited with prompt: "${prompt}"`,
-        attachment: stream
-      });
-    } catch (error) {
-      console.error("Error:", error);
-      message.reply("❌ | An error occurred while editing the image. Please try again later.");
-    }
-  }
+} catch (err) {
+console.error("EDIT Error:", err);
+message.reply("❌ | Failed to edit image. Please try again later.");
+} finally {
+await fs.remove(imgPath);
+api.unsendMessage(waitMsg.messageID);
+}
+}
 };
