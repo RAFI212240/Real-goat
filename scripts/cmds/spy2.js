@@ -3,71 +3,53 @@ const axios = require("axios");
 module.exports = {
   config: {
     name: "spy2",
-    aliases: ["whoishe", "whoisshe", "whoami", "stalk"],
+    aliases: ["in2", "sp2", "whoami2"],
     version: "2.0",
     role: 0,
-    author: "xnil6x",
+    author: "Mahin",
     description: "Get detailed user information with elegant presentation",
     category: "information",
-    countDown: 5,
+    countDown: 3,
   },
 
-  onStart: async function({ event, message, usersData, api, args }) {
-    let targetUID;
+  onStart: async function ({ event, message, usersData, api, args }) {
+    let uid;
     const senderID = event.senderID;
+    const mentions = Object.keys(event.mentions);
 
-    // টার্গেট UID নির্ধারণ
+    // Check args
     if (args[0]) {
-      if (/^\d+$/.test(args[0])) { // যদি সরাসরি UID দেয়
-        targetUID = args[0];
-      } else { // যদি profile.php লিংক দেয়
+      if (/^\d+$/.test(args[0])) {
+        uid = args[0];
+      } else {
         const match = args[0].match(/profile\.php\?id=(\d+)/);
-        if (match) targetUID = match[1];
+        if (match) uid = match[1];
       }
     }
 
-    // যদি আর্গুমেন্ট না থাকে, রিপ্লাই বা মেনশন চেক করো, না হলে নিজের ID নাও
-    targetUID = targetUID || (event.type === "message_reply" ? event.messageReply.senderID : Object.keys(event.mentions || {})[0] || senderID);
-
-    if (!targetUID) {
-      return message.reply("দয়া করে একজন ব্যবহারকারীকে ট্যাগ করুন, একটি বার্তার উত্তর দিন, অথবা একটি UID প্রদান করুন।");
+    // Fallbacks
+    if (!uid) {
+      uid = event.type === "message_reply"
+        ? event.messageReply.senderID
+        : mentions[0] || senderID;
     }
 
     try {
-      // ইউজারের তথ্য আনা
-      const userInfo = await api.getUserInfo(targetUID);
-      const user = userInfo[targetUID]; // getUserInfo একটি অবজেক্ট রিটার্ন করে
+      const [userInfo, avatarUrl, userData, allUsers] = await Promise.all([
+        api.getUserInfo(uid),
+        usersData.getAvatarUrl(uid),
+        usersData.get(uid),
+        usersData.getAll()
+      ]);
 
-      if (!user) {
-        return message.reply("এই ইউজারের তথ্য পাওয়া যায়নি।");
-      }
-
-      // Avatar URL আনা (global.utils.getStreamFromURL ব্যবহার করা হয়েছে)
-      const avatarStream = await global.utils.getStreamFromURL(`https://graph.facebook.com/${targetUID}/picture?width=720&height=720`);
-
-      // ব্যবহারকারীর ডেটা (যদি usersData.get() কাজ করে)
-      let userDataLocal = {};
-      try {
-        userDataLocal = await usersData.get(targetUID) || {};
-      } catch (e) {
-        console.warn("Could not fetch user data from usersData.get:", e);
-      }
-
-      // সব ইউজারের ডেটা আনা (র্যাঙ্ক ক্যালকুলেশনের জন্য)
-      let allUsersData = [];
-      try {
-        allUsersData = await usersData.getAll() || [];
-      } catch (e) {
-        console.warn("Could not fetch all users data from usersData.getAll:", e);
-      }
-
+      const info = userInfo[uid];
       const genderMap = {
         1: "♀️ Girl",
         2: "♂️ Boy",
-        undefined: "🌈 Custom" // Facebook API তে gender 1 (Female), 2 (Male) হয়, বাকিটা Custom ধরে নেওয়া
+        undefined: "🌈 Custom"
       };
 
-      const formatMoney = num => {
+      const formatMoney = (num) => {
         if (isNaN(num)) return "0";
         const units = ["", "K", "M", "B", "T"];
         let unit = 0;
@@ -78,17 +60,16 @@ module.exports = {
         return num.toFixed(1).replace(/\.0$/, "") + units[unit];
       };
 
-      const getRank = (id, key, allUsers) => {
+      const getRank = (id, key) => {
         const sorted = [...allUsers].sort((a, b) => (b[key] || 0) - (a[key] || 0));
-        const rank = sorted.findIndex(u => u.userID === id);
-        return rank !== -1 ? rank + 1 : "N/A";
+        return sorted.findIndex(u => u.userID === id) + 1;
       };
 
       const stats = {
-        money: userDataLocal.money || 0,
-        exp: userDataLocal.exp || 0,
-        rank: getRank(targetUID, 'exp', allUsersData),
-        moneyRank: getRank(targetUID, 'money', allUsersData)
+        money: userData.money || 0,
+        exp: userData.exp || 0,
+        rank: getRank(uid, 'exp'),
+        moneyRank: getRank(uid, 'money')
       };
 
       const createBox = (title, items) => {
@@ -96,39 +77,38 @@ module.exports = {
         items.forEach(([key, value]) => {
           box += `├─ ${key}: ${value}\n`;
         });
-        box += `╰─────────────────`;
+        box += `╰────────────────`;
         return box;
       };
 
       const profileBox = createBox("PROFILE", [
-        ["🎭 Name", user.name || "N/A"],
-        ["🧬 Gender", genderMap[user.gender] || "Unknown"],
-        ["🆔 UID", targetUID],
-        ["👑 Status", user.type?.toUpperCase() || "Regular User"],
-        ["🏷️ Username", user.vanity || "None"],
-        ["🎂 Birthday", user.isBirthday ? "✅ Has Birthday" : "❌ No Birthday info"],
-        ["💫 Nickname", user.alternateName || "None"],
-        ["🤖 Bot Friend", user.isFriend ? "✅ Yes" : "❌ No"]
+        ["🎭 Name", info.name || "Unknown"],
+        ["🧬 Gender", genderMap[info.gender]],
+        ["🆔 UID", uid],
+        ["👑 Status", (info.type || "Regular User").toUpperCase()],
+        ["🏷️ Username", info.vanity || "None"],
+        ["🎂 Birthday", info.isBirthday ? "Yes" : "Private"],
+        ["💫 Nickname", info.alternateName || "None"],
+        ["🤖 Bot Friend", info.isFriend ? "✅ Yes" : "❌ No"]
       ]);
 
       const statsBox = createBox("STATISTICS", [
         ["💰 Money", `$${formatMoney(stats.money)}`],
         ["⭐ Experience", stats.exp],
-        ["🏆 Rank", stats.rank !== "N/A" ? `#${stats.rank}/${allUsersData.length}` : "N/A"],
-        ["💎 Wealth Rank", stats.moneyRank !== "N/A" ? `#${stats.moneyRank}/${allUsersData.length}` : "N/A"]
+        ["🏆 Rank", `#${stats.rank}/${allUsers.length}`],
+        ["💎 Wealth Rank", `#${stats.moneyRank}/${allUsers.length}`]
       ]);
 
-      const profileUrl = `🌐 Profile: ${user.profileUrl || "N/A"}`;
+      const profileUrl = `🌐 Profile: https://facebook.com/${info.vanity || "profile.php?id=" + uid}`;
 
       await message.reply({
         body: `${profileBox}\n\n${statsBox}\n\n${profileUrl}`,
-        attachment: avatarStream
+        attachment: await global.utils.getStreamFromURL(avatarUrl)
       });
 
-    } catch (error) {
-      console.error("Spy Command Error:", error);
-      message.reply("🔍 এই ইউজারের উপর স্পাই করা সম্ভব হয়নি। সম্ভবত সে অদৃশ্য হয়ে গেছে অথবা কোনো ভুল হয়েছে।");
+    } catch (err) {
+      console.error("Spy Command Error:", err);
+      return message.reply("🔍 Couldn't spy on this user. They might be hiding in the shadows.");
     }
   }
 };
-         
